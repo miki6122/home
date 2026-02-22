@@ -11,37 +11,56 @@
       <aside class="sidebar">
         <h1>Realtime Messenger</h1>
 
-        <section id="registrationSection" class="panel">
-          <h2>Реєстрація</h2>
-          <form id="registrationForm">
+        <section id="authSection" class="panel">
+          <h2>Вхід / Реєстрація</h2>
+          <form id="authForm">
+            <label>Дія
+              <select name="action">
+                <option value="register">Реєстрація</option>
+                <option value="login">Вхід</option>
+              </select>
+            </label>
             <label>Ім'я<input name="name" minlength="2" required /></label>
             <label>
-              Телефон
-              <input name="phone" type="tel" pattern="^\+?[0-9]{10,15}$" placeholder="+380XXXXXXXXX" required />
+              Спосіб
+              <select name="method" id="authMethod">
+                <option value="phone">Телефон + SMS</option>
+                <option value="email">Email + код</option>
+              </select>
             </label>
-            <button type="submit">Увійти</button>
+            <label id="phoneWrap">Телефон<input name="phone" type="tel" placeholder="+380XXXXXXXXX" /></label>
+            <label id="emailWrap" class="hidden">Email<input name="email" type="email" placeholder="name@example.com" /></label>
+            <button type="submit">Отримати код</button>
           </form>
+
+          <form id="verifyForm" class="hidden top-gap">
+            <label>Код підтвердження<input name="code" required /></label>
+            <button type="submit">Підтвердити</button>
+            <p class="hint">Демо-код: <span id="demoCode">—</span></p>
+          </form>
+
+          <button id="guestBtn" class="secondary">Увійти як гість</button>
         </section>
 
         <section id="profileSection" class="panel hidden">
           <h2>Профіль</h2>
           <div id="myProfile"></div>
-          <h3>Онлайн</h3>
+          <button id="logoutBtn" class="secondary">Вийти</button>
+          <h3>Користувачі</h3>
           <div id="onlineUsers" class="online-users"></div>
         </section>
 
         <nav id="tabs" class="hidden">
           <button class="tab-btn active" data-tab="chat">Чат</button>
           <button class="tab-btn" data-tab="urgent">Срочні</button>
+          <button class="tab-btn" data-tab="support">Техпідтримка</button>
+          <button class="tab-btn admin-only hidden" data-tab="admin">Адмін</button>
         </nav>
       </aside>
 
       <main>
         <section id="chatSection" class="panel hidden">
-          <div class="chat-header">
-            <h2>Загальний чат</h2>
-            <button id="callBtn">📞 Дзвінок</button>
-          </div>
+          <h2>Загальний чат</h2>
           <div id="messages" class="messages"></div>
           <form id="messageForm" class="row-form">
             <input name="message" placeholder="Напишіть повідомлення..." required />
@@ -51,35 +70,34 @@
 
         <section id="urgentSection" class="panel hidden">
           <h2>Срочні повідомлення</h2>
-          <form id="urgentForm" class="urgent-form">
-            <label>
-              Тип
+          <form id="urgentForm">
+            <label>Тип
               <select name="mode" id="urgentMode">
                 <option value="global">Загальне (всім)</option>
-                <option value="personal">Персональне (1 користувачу)</option>
+                <option value="personal">Персональне</option>
               </select>
             </label>
-
-            <label id="targetPhoneWrap" class="hidden">
-              Телефон отримувача
-              <input name="targetPhone" placeholder="+380XXXXXXXXX" />
+            <label id="targetUserWrap" class="hidden">Користувач
+              <select name="targetUserId" id="targetUserSelect"></select>
             </label>
-
-            <label>
-              Текст
-              <textarea name="urgentText" rows="4" maxlength="280" required></textarea>
-            </label>
-
-            <div class="examples">
-              Приклади:
-              <button type="button" class="example-btn" data-example="У вас вода кипить">У вас вода кипить</button>
-              <button type="button" class="example-btn" data-example="У вас їжа горить">У вас їжа горить</button>
-            </div>
-
+            <label>Текст<textarea name="urgentText" rows="3" required></textarea></label>
             <button type="submit">Надіслати срочне</button>
           </form>
-
           <div id="urgentHistory" class="urgent-history"></div>
+        </section>
+
+        <section id="supportSection" class="panel hidden">
+          <h2>Техпідтримка</h2>
+          <form id="supportForm" class="row-form">
+            <input name="text" placeholder="Опишіть проблему..." required />
+            <button type="submit">Відправити</button>
+          </form>
+          <div id="supportList" class="support-list"></div>
+        </section>
+
+        <section id="adminSection" class="panel hidden">
+          <h2>Адмін-панель</h2>
+          <div id="adminUsers" class="admin-users"></div>
         </section>
       </main>
     </div>
@@ -88,7 +106,6 @@
       <div class="urgent-content">
         <h2>⚠️ Срочне повідомлення</h2>
         <p id="urgentOverlayText"></p>
-        <p id="urgentOverlayMeta" class="meta"></p>
         <button id="closeOverlay">Закрити</button>
       </div>
     </div>

@@ -1,204 +1,304 @@
 const ui = {
-  registrationSection: document.getElementById('registrationSection'),
+  authSection: document.getElementById('authSection'),
+  authForm: document.getElementById('authForm'),
+  authMethod: document.getElementById('authMethod'),
+  phoneWrap: document.getElementById('phoneWrap'),
+  emailWrap: document.getElementById('emailWrap'),
+  verifyForm: document.getElementById('verifyForm'),
+  demoCode: document.getElementById('demoCode'),
+  guestBtn: document.getElementById('guestBtn'),
   profileSection: document.getElementById('profileSection'),
-  registrationForm: document.getElementById('registrationForm'),
   myProfile: document.getElementById('myProfile'),
+  logoutBtn: document.getElementById('logoutBtn'),
   onlineUsers: document.getElementById('onlineUsers'),
   tabs: document.getElementById('tabs'),
   tabButtons: document.querySelectorAll('.tab-btn'),
+  adminTab: document.querySelector('.tab-btn[data-tab="admin"]'),
   chatSection: document.getElementById('chatSection'),
   urgentSection: document.getElementById('urgentSection'),
+  supportSection: document.getElementById('supportSection'),
+  adminSection: document.getElementById('adminSection'),
   messages: document.getElementById('messages'),
   messageForm: document.getElementById('messageForm'),
-  callBtn: document.getElementById('callBtn'),
   urgentForm: document.getElementById('urgentForm'),
   urgentMode: document.getElementById('urgentMode'),
-  targetPhoneWrap: document.getElementById('targetPhoneWrap'),
+  targetUserWrap: document.getElementById('targetUserWrap'),
+  targetUserSelect: document.getElementById('targetUserSelect'),
   urgentHistory: document.getElementById('urgentHistory'),
-  exampleButtons: document.querySelectorAll('.example-btn'),
+  supportForm: document.getElementById('supportForm'),
+  supportList: document.getElementById('supportList'),
+  adminUsers: document.getElementById('adminUsers'),
   urgentOverlay: document.getElementById('urgentOverlay'),
   urgentOverlayText: document.getElementById('urgentOverlayText'),
-  urgentOverlayMeta: document.getElementById('urgentOverlayMeta'),
   closeOverlay: document.getElementById('closeOverlay'),
 };
 
-const storageKey = 'chat_api_token';
+const storageKey = 'chat_token';
 let token = localStorage.getItem(storageKey);
 let me = null;
-let seenUrgentIds = new Set();
+let pendingId = null;
 let activeTab = 'chat';
+let seenUrgentIds = new Set();
 
 const formatTime = (iso) => new Date(iso).toLocaleString('uk-UA');
-
-const showTab = (tab) => {
-  activeTab = tab;
-  ui.tabButtons.forEach((btn) => btn.classList.toggle('active', btn.dataset.tab === tab));
-  ui.chatSection.classList.toggle('hidden', tab !== 'chat');
-  ui.urgentSection.classList.toggle('hidden', tab !== 'urgent');
-};
+const contactText = (u) => [u.phone, u.email].filter(Boolean).join(' / ') || 'гість';
 
 const api = async (url, method = 'GET', body) => {
-  const response = await fetch(url, {
+  const resp = await fetch(url, {
     method,
     headers: { 'Content-Type': 'application/json' },
     body: body ? JSON.stringify(body) : undefined,
   });
+  const data = await resp.json();
+  if (!resp.ok) throw new Error(data.error || 'API error');
+  return data;
+};
 
-  const payload = await response.json();
-  if (!response.ok) throw new Error(payload.error || 'API error');
-  return payload;
+const showTab = (tab) => {
+  activeTab = tab;
+  ui.tabButtons.forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
+  ui.chatSection.classList.toggle('hidden', tab !== 'chat');
+  ui.urgentSection.classList.toggle('hidden', tab !== 'urgent');
+  ui.supportSection.classList.toggle('hidden', tab !== 'support');
+  ui.adminSection.classList.toggle('hidden', tab !== 'admin');
+};
+
+const setLoggedOutUI = () => {
+  ui.authSection.classList.remove('hidden');
+  ui.profileSection.classList.add('hidden');
+  ui.tabs.classList.add('hidden');
+  ui.chatSection.classList.add('hidden');
+  ui.urgentSection.classList.add('hidden');
+  ui.supportSection.classList.add('hidden');
+  ui.adminSection.classList.add('hidden');
+};
+
+const setLoggedInUI = () => {
+  ui.authSection.classList.add('hidden');
+  ui.profileSection.classList.remove('hidden');
+  ui.tabs.classList.remove('hidden');
+  ui.adminTab.classList.toggle('hidden', me.role !== 'admin');
+  if (me.role !== 'admin' && activeTab === 'admin') activeTab = 'chat';
+  showTab(activeTab);
+  ui.myProfile.textContent = `${me.name} (${contactText(me)})${me.isGuest ? ' [гість]' : ''}${me.role === 'admin' ? ' [адмін]' : ''}`;
 };
 
 const renderUsers = (users) => {
   ui.onlineUsers.innerHTML = '';
-  users.forEach((user) => {
-    const el = document.createElement('div');
-    el.className = `user-pill ${user.phone === me?.phone ? 'me' : ''}`;
-    el.textContent = `${user.name} (${user.phone})`;
-    ui.onlineUsers.append(el);
+  ui.targetUserSelect.innerHTML = '';
+  users.filter((u) => !u.blocked).forEach((u) => {
+    const pill = document.createElement('div');
+    pill.className = 'user-pill';
+    pill.textContent = `${u.name} (${contactText(u)})`;
+    ui.onlineUsers.append(pill);
+
+    if (u.id !== me.id) {
+      const opt = document.createElement('option');
+      opt.value = u.id;
+      opt.textContent = `${u.name} (${contactText(u)})`;
+      ui.targetUserSelect.append(opt);
+    }
   });
 };
 
 const renderMessages = (messages) => {
   ui.messages.innerHTML = '';
   messages.forEach((m) => {
-    const isMine = m.senderPhone === me?.phone;
-    const el = document.createElement('article');
-    el.className = `message ${isMine ? 'mine' : ''}`;
-    el.innerHTML = `
-      <div>${m.text}</div>
-      <div class="meta">${m.senderName} (${m.senderPhone}) • ${formatTime(m.createdAt)}</div>
-    `;
-    ui.messages.append(el);
+    const item = document.createElement('article');
+    item.className = `message ${m.senderId === me.id ? 'mine' : ''}`;
+    item.innerHTML = `<div>${m.text}</div><div class='meta'>${m.senderName} • ${formatTime(m.createdAt)}</div>`;
+    ui.messages.append(item);
   });
   ui.messages.scrollTop = ui.messages.scrollHeight;
 };
 
 const renderUrgent = (items) => {
   ui.urgentHistory.innerHTML = '';
-  items
-    .slice()
-    .reverse()
-    .forEach((u) => {
-      const modeText = u.mode === 'global' ? 'ЗАГАЛЬНЕ' : `ПЕРСОНАЛЬНЕ → ${u.targetPhone}`;
-      const el = document.createElement('article');
-      el.className = `urgent-item ${u.mode}`;
-      el.innerHTML = `
-        <strong>${modeText}</strong>
-        <div>${u.text}</div>
-        <div class="meta">${u.senderName} • ${formatTime(u.createdAt)}</div>
-      `;
-      ui.urgentHistory.append(el);
-    });
-
-  const fresh = items.filter((item) => !seenUrgentIds.has(item.id));
-  fresh.forEach((item) => {
-    seenUrgentIds.add(item.id);
+  items.slice().reverse().forEach((u) => {
+    const item = document.createElement('article');
+    item.className = `urgent-item ${u.mode}`;
+    item.innerHTML = `<strong>${u.mode === 'global' ? 'ЗАГАЛЬНЕ' : 'ПЕРСОНАЛЬНЕ'}</strong><div>${u.text}</div><div class='meta'>${u.senderName} • ${formatTime(u.createdAt)}</div>`;
+    ui.urgentHistory.append(item);
   });
 
+  const fresh = items.filter((x) => !seenUrgentIds.has(x.id));
+  fresh.forEach((x) => seenUrgentIds.add(x.id));
   if (fresh.length) {
-    const latest = fresh[fresh.length - 1];
-    ui.urgentOverlayText.textContent = latest.text;
-    ui.urgentOverlayMeta.textContent = `${latest.senderName} • ${latest.mode === 'global' ? 'загальне' : `персональне для ${latest.targetPhone}`}`;
+    ui.urgentOverlayText.textContent = fresh[fresh.length - 1].text;
     ui.urgentOverlay.classList.remove('hidden');
   }
 };
 
-const applyLoggedInUI = () => {
-  ui.registrationSection.classList.add('hidden');
-  ui.profileSection.classList.remove('hidden');
-  ui.tabs.classList.remove('hidden');
-  showTab(activeTab);
-  ui.myProfile.textContent = `${me.name} (${me.phone})`;
+const renderSupport = (items) => {
+  ui.supportList.innerHTML = '';
+  items.slice().reverse().forEach((s) => {
+    const box = document.createElement('article');
+    box.className = 'support-item';
+    box.innerHTML = `<div><strong>${s.userName}</strong>: ${s.text}</div><div class='meta'>${formatTime(s.createdAt)}</div><div>${s.answer ? `✅ ${s.answeredBy}: ${s.answer}` : '⏳ Очікує відповіді адміна'}</div>`;
+
+    if (me.role === 'admin' && !s.answer) {
+      const form = document.createElement('form');
+      form.className = 'row-form top-gap';
+      form.innerHTML = `<input placeholder='Відповідь...' required /><button>Відповісти</button>`;
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const input = form.querySelector('input');
+        await api('/api/support/reply', 'POST', { token, supportId: s.id, answer: input.value.trim() });
+        await syncState();
+      });
+      box.append(form);
+    }
+
+    ui.supportList.append(box);
+  });
+};
+
+const renderAdminUsers = async () => {
+  if (me.role !== 'admin') return;
+  const data = await api(`/api/admin/users?token=${encodeURIComponent(token)}`);
+  ui.adminUsers.innerHTML = '';
+  data.users.forEach((u) => {
+    const row = document.createElement('div');
+    row.className = 'admin-row';
+    row.innerHTML = `<div>${u.name} (${contactText(u)}) ${u.blocked ? '🚫' : ''} ${u.role === 'admin' ? '[адмін]' : ''}</div>`;
+    if (u.role !== 'admin') {
+      const blockBtn = document.createElement('button');
+      blockBtn.className = 'secondary';
+      blockBtn.textContent = u.blocked ? 'Розблокувати' : 'Заблокувати';
+      blockBtn.onclick = async () => {
+        await api('/api/admin/block', 'POST', { token, userId: u.id, blocked: !u.blocked });
+        await syncState();
+      };
+
+      const kickBtn = document.createElement('button');
+      kickBtn.className = 'danger';
+      kickBtn.textContent = 'Вигнати';
+      kickBtn.onclick = async () => {
+        await api('/api/admin/kick', 'POST', { token, userId: u.id });
+        await syncState();
+      };
+      row.append(blockBtn, kickBtn);
+    }
+    ui.adminUsers.append(row);
+  });
 };
 
 const syncState = async () => {
   if (!token) return;
-
   try {
-    const state = await api(`/api/state?token=${encodeURIComponent(token)}`);
-    me = state.me;
-    applyLoggedInUI();
-    renderUsers(state.users);
-    renderMessages(state.messages);
-    renderUrgent(state.urgent);
+    const s = await api(`/api/state?token=${encodeURIComponent(token)}`);
+    me = s.me;
+    setLoggedInUI();
+    renderUsers(s.users);
+    renderMessages(s.messages);
+    renderUrgent(s.urgent);
+    renderSupport(s.support);
+    await renderAdminUsers();
   } catch {
     localStorage.removeItem(storageKey);
     token = null;
+    me = null;
+    setLoggedOutUI();
   }
 };
 
-ui.registrationForm.addEventListener('submit', async (e) => {
+ui.authMethod.addEventListener('change', () => {
+  const isPhone = ui.authMethod.value === 'phone';
+  ui.phoneWrap.classList.toggle('hidden', !isPhone);
+  ui.emailWrap.classList.toggle('hidden', isPhone);
+});
+
+ui.authForm.addEventListener('submit', async (e) => {
   e.preventDefault();
+  try {
+    const f = new FormData(ui.authForm);
+    const res = await api('/api/auth/start', 'POST', {
+      action: String(f.get('action') || 'register'),
+      name: String(f.get('name')).trim(),
+      method: String(f.get('method')),
+      phone: String(f.get('phone') || '').trim(),
+      email: String(f.get('email') || '').trim(),
+    });
+    pendingId = res.pendingId;
+    ui.verifyForm.classList.remove('hidden');
+    ui.demoCode.textContent = res.demoCode;
+    alert(res.message);
+  } catch (err) {
+    alert(err.message);
+  }
+});
 
-  const data = new FormData(ui.registrationForm);
-  const payload = await api('/api/register', 'POST', {
-    name: String(data.get('name')).trim(),
-    phone: String(data.get('phone')).trim(),
-  });
+ui.verifyForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  try {
+    const f = new FormData(ui.verifyForm);
+    const res = await api('/api/auth/verify', 'POST', { pendingId, code: String(f.get('code')).trim() });
+    token = res.token;
+    localStorage.setItem(storageKey, token);
+    ui.verifyForm.classList.add('hidden');
+    await syncState();
+  } catch (err) {
+    alert(err.message);
+  }
+});
 
-  token = payload.token;
-  me = payload.profile;
-  localStorage.setItem(storageKey, token);
+ui.guestBtn.addEventListener('click', async () => {
+  try {
+    const name = prompt('Імʼя гостя:', 'Гість');
+    const res = await api('/api/auth/guest', 'POST', { name });
+    token = res.token;
+    localStorage.setItem(storageKey, token);
+    await syncState();
+  } catch (err) {
+    alert(err.message);
+  }
+});
 
-  applyLoggedInUI();
-  await syncState();
+ui.logoutBtn.addEventListener('click', async () => {
+  if (token) await api('/api/logout', 'POST', { token });
+  localStorage.removeItem(storageKey);
+  token = null;
+  me = null;
+  setLoggedOutUI();
 });
 
 ui.messageForm.addEventListener('submit', async (e) => {
   e.preventDefault();
-
-  const data = new FormData(ui.messageForm);
-  const text = String(data.get('message')).trim();
-  if (!text) return;
-
-  await api('/api/chat/send', 'POST', { token, text });
+  const f = new FormData(ui.messageForm);
+  await api('/api/chat/send', 'POST', { token, text: String(f.get('message')).trim() });
   ui.messageForm.reset();
   await syncState();
 });
 
 ui.urgentMode.addEventListener('change', () => {
-  ui.targetPhoneWrap.classList.toggle('hidden', ui.urgentMode.value !== 'personal');
+  ui.targetUserWrap.classList.toggle('hidden', ui.urgentMode.value !== 'personal');
 });
 
 ui.urgentForm.addEventListener('submit', async (e) => {
   e.preventDefault();
-  const data = new FormData(ui.urgentForm);
-
-  const mode = String(data.get('mode'));
-  const text = String(data.get('urgentText')).trim();
-  const targetPhone = String(data.get('targetPhone') || '').trim();
-
-  if (!text) return;
-  if (mode === 'personal' && !targetPhone) {
-    alert('Для персонального срочного повідомлення вкажіть телефон отримувача.');
-    return;
-  }
-
-  await api('/api/urgent/send', 'POST', { token, mode, text, targetPhone });
+  const f = new FormData(ui.urgentForm);
+  await api('/api/urgent/send', 'POST', {
+    token,
+    mode: String(f.get('mode')),
+    text: String(f.get('urgentText')).trim(),
+    targetUserId: String(f.get('targetUserId') || ''),
+  });
   ui.urgentForm.reset();
-  ui.targetPhoneWrap.classList.add('hidden');
+  ui.targetUserWrap.classList.add('hidden');
   await syncState();
 });
 
-ui.exampleButtons.forEach((button) => {
-  button.addEventListener('click', () => {
-    ui.urgentForm.elements.urgentText.value = button.dataset.example;
-  });
+ui.supportForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const f = new FormData(ui.supportForm);
+  await api('/api/support/send', 'POST', { token, text: String(f.get('text')).trim() });
+  ui.supportForm.reset();
+  await syncState();
 });
 
-ui.tabButtons.forEach((btn) => {
-  btn.addEventListener('click', () => showTab(btn.dataset.tab));
-});
-
-ui.callBtn.addEventListener('click', () => {
-  if (!me) return;
-  alert(`📞 Імітація дзвінка від ${me.name} (${me.phone})`);
-});
-
-ui.closeOverlay.addEventListener('click', () => {
-  ui.urgentOverlay.classList.add('hidden');
-});
+ui.tabButtons.forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
+ui.closeOverlay.addEventListener('click', () => ui.urgentOverlay.classList.add('hidden'));
 
 if (token) syncState();
+else setLoggedOutUI();
 setInterval(syncState, 1500);
