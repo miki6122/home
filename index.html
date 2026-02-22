@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Messenger Срочні Повідомлення</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="app" class="app-shell">
+      <aside class="sidebar">
+        <h1>Lite Messenger</h1>
+        <div class="user-card" id="userCard"></div>
+        <button id="resetProfile" class="ghost">Змінити профіль</button>
+
+        <nav>
+          <button class="tab-btn active" data-tab="chat">Чат</button>
+          <button class="tab-btn" data-tab="urgent">Срочні</button>
+        </nav>
+      </aside>
+
+      <main class="main-content">
+        <section id="registrationSection" class="panel">
+          <h2>Реєстрація</h2>
+          <form id="registrationForm">
+            <label>
+              Ім'я
+              <input name="name" type="text" minlength="2" required />
+            </label>
+            <label>
+              Номер телефону
+              <input
+                name="phone"
+                type="tel"
+                placeholder="+380XXXXXXXXX"
+                pattern="^\+?[0-9]{10,15}$"
+                required
+              />
+            </label>
+            <button type="submit">Увійти</button>
+          </form>
+        </section>
+
+        <section id="chatSection" class="panel hidden">
+          <div class="chat-header">
+            <h2>Чат</h2>
+            <button id="callBtn">📞 Дзвінок</button>
+          </div>
+          <div id="messages" class="messages"></div>
+          <form id="messageForm" class="message-form">
+            <input name="message" placeholder="Напишіть повідомлення..." required />
+            <button type="submit">Надіслати</button>
+          </form>
+        </section>
+
+        <section id="urgentSection" class="panel hidden">
+          <h2>Срочні повідомлення</h2>
+          <form id="urgentForm" class="urgent-form">
+            <textarea
+              name="urgentText"
+              rows="4"
+              maxlength="280"
+              placeholder="Введіть срочне повідомлення..."
+              required
+            ></textarea>
+            <button type="submit">Показати на весь екран</button>
+          </form>
+          <div id="urgentHistory" class="urgent-history"></div>
+        </section>
+      </main>
+    </div>
+
+    <div id="urgentOverlay" class="urgent-overlay hidden" role="alert">
+      <div class="urgent-content">
+        <p id="urgentOverlayText"></p>
+        <button id="closeOverlay">Закрити</button>
+      </div>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
