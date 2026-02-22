@@ -26,10 +26,12 @@ const storageKey = 'chat_api_token';
 let token = localStorage.getItem(storageKey);
 let me = null;
 let seenUrgentIds = new Set();
+let activeTab = 'chat';
 
 const formatTime = (iso) => new Date(iso).toLocaleString('uk-UA');
 
 const showTab = (tab) => {
+  activeTab = tab;
   ui.tabButtons.forEach((btn) => btn.classList.toggle('active', btn.dataset.tab === tab));
   ui.chatSection.classList.toggle('hidden', tab !== 'chat');
   ui.urgentSection.classList.toggle('hidden', tab !== 'urgent');
@@ -106,7 +108,7 @@ const applyLoggedInUI = () => {
   ui.registrationSection.classList.add('hidden');
   ui.profileSection.classList.remove('hidden');
   ui.tabs.classList.remove('hidden');
-  showTab('chat');
+  showTab(activeTab);
   ui.myProfile.textContent = `${me.name} (${me.phone})`;
 };
 
