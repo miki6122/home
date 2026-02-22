@@ -1,0 +1,9 @@
+{
+  "name": "lite-messenger-realtime",
+  "version": "1.0.0",
+  "description": "Realtime-like chat without external dependencies",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  }
+}
