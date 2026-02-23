@@ -127,6 +127,7 @@ const bootstrapAdmin = () => {
     isGuest: false,
     role: 'admin',
     blocked: false,
+    password: '27746435324',
     createdAt: nowIso(),
   };
   users.set(adminUser.id, adminUser);
@@ -149,6 +150,7 @@ const server = http.createServer(async (req, res) => {
         isGuest: true,
         role: 'user',
         blocked: false,
+        password: null,
         createdAt: nowIso(),
       };
       users.set(user.id, user);
@@ -161,9 +163,36 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+
+
+  if (req.method === 'POST' && pathname === '/api/auth/password-login') {
+    try {
+      const { identifier, password } = await readBody(req);
+      const id = String(identifier || '').trim().toLowerCase();
+      const pass = String(password || '');
+      if (!id || !pass) return sendJson(res, 400, { error: 'identifier and password required' });
+
+      const user = [...users.values()].find((u) => {
+        const phone = (u.phone || '').toLowerCase();
+        const email = (u.email || '').toLowerCase();
+        return phone === id || email === id;
+      });
+
+      if (!user) return sendJson(res, 404, { error: 'user not found' });
+      if (user.blocked) return sendJson(res, 403, { error: 'user blocked by admin' });
+      if (!user.password || user.password !== pass) return sendJson(res, 401, { error: 'wrong password' });
+
+      const token = crypto.randomUUID();
+      sessions.set(token, user.id);
+      return sendJson(res, 200, { token, profile: publicUser(user) });
+    } catch {
+      return sendJson(res, 400, { error: 'invalid json' });
+    }
+  }
+
   if (req.method === 'POST' && pathname === '/api/auth/start') {
     try {
-      const { action, name, method, phone, email } = await readBody(req);
+      const { action, name, method, phone, email, password } = await readBody(req);
       const m = method === 'email' ? 'email' : 'phone';
       const trimmedName = String(name || '').trim();
       const targetPhone = String(phone || '').trim();
@@ -182,6 +211,9 @@ const server = http.createServer(async (req, res) => {
       if (requestedAction === 'login' && !existing) {
         return sendJson(res, 404, { error: m === 'phone' ? 'phone not found' : 'email not found' });
       }
+      if (requestedAction === 'register' && String(password || '').trim().length < 6) {
+        return sendJson(res, 400, { error: 'password must be at least 6 chars' });
+      }
 
       const code = randomCode();
       const pendingId = crypto.randomUUID();
@@ -193,6 +225,7 @@ const server = http.createServer(async (req, res) => {
         method: m,
         phone: m === 'phone' ? targetPhone : null,
         email: m === 'email' ? targetEmail : null,
+        password: requestedAction === 'register' ? String(password || '') : null,
         code,
         expiresAt: Date.now() + OTP_TTL_MS,
       });
@@ -234,6 +267,7 @@ const server = http.createServer(async (req, res) => {
           isGuest: false,
           role: 'user',
           blocked: false,
+          password: pending.password,
           createdAt: nowIso(),
         };
         users.set(user.id, user);

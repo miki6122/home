@@ -30,6 +30,7 @@
             </label>
             <label id="phoneWrap">Телефон<input name="phone" type="tel" placeholder="+380XXXXXXXXX" /></label>
             <label id="emailWrap" class="hidden">Email<input name="email" type="email" placeholder="name@example.com" /></label>
+            <label id="passwordWrap">Пароль<input name="password" type="password" placeholder="Мінімум 6 символів" /></label>
             <button type="submit">Отримати код</button>
           </form>
 
@@ -40,7 +41,10 @@
           </form>
 
           <button id="guestBtn" class="secondary">Увійти як гість</button>
-          <button id="adminQuickBtn" class="secondary">Увійти як адмін (демо)</button>
+          <form id="adminLoginForm" class="top-gap">
+            <label>Адмін пароль<input name="adminPassword" type="password" value="27746435324" /></label>
+            <button type="submit" class="secondary">Увійти як адмін</button>
+          </form>
         </section>
 
         <section id="profileSection" class="panel hidden">

@@ -4,10 +4,11 @@ const ui = {
   authMethod: document.getElementById('authMethod'),
   phoneWrap: document.getElementById('phoneWrap'),
   emailWrap: document.getElementById('emailWrap'),
+  passwordWrap: document.getElementById('passwordWrap'),
   verifyForm: document.getElementById('verifyForm'),
   demoCode: document.getElementById('demoCode'),
   guestBtn: document.getElementById('guestBtn'),
-  adminQuickBtn: document.getElementById('adminQuickBtn'),
+  adminLoginForm: document.getElementById('adminLoginForm'),
   profileSection: document.getElementById('profileSection'),
   myProfile: document.getElementById('myProfile'),
   logoutBtn: document.getElementById('logoutBtn'),
@@ -223,6 +224,7 @@ ui.authForm.addEventListener('submit', async (e) => {
       method: String(f.get('method')),
       phone: String(f.get('phone') || '').trim(),
       email: String(f.get('email') || '').trim(),
+      password: String(f.get('password') || ''),
     });
     pendingId = res.pendingId;
     ui.verifyForm.classList.remove('hidden');
@@ -260,16 +262,15 @@ ui.guestBtn.addEventListener('click', async () => {
 });
 
 
-ui.adminQuickBtn.addEventListener('click', async () => {
+ui.adminLoginForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
   try {
-    const start = await api('/api/auth/start', 'POST', {
-      action: 'login',
-      name: 'Адмін',
-      method: 'email',
-      email: 'admin@chat.local',
+    const f = new FormData(ui.adminLoginForm);
+    const res = await api('/api/auth/password-login', 'POST', {
+      identifier: 'admin@chat.local',
+      password: String(f.get('adminPassword') || ''),
     });
-    const verify = await api('/api/auth/verify', 'POST', { pendingId: start.pendingId, code: start.demoCode });
-    token = verify.token;
+    token = res.token;
     localStorage.setItem(storageKey, token);
     await syncState();
   } catch (err) {
