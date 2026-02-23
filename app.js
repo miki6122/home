@@ -7,6 +7,7 @@ const ui = {
   verifyForm: document.getElementById('verifyForm'),
   demoCode: document.getElementById('demoCode'),
   guestBtn: document.getElementById('guestBtn'),
+  adminQuickBtn: document.getElementById('adminQuickBtn'),
   profileSection: document.getElementById('profileSection'),
   myProfile: document.getElementById('myProfile'),
   logoutBtn: document.getElementById('logoutBtn'),
@@ -136,15 +137,19 @@ const renderSupport = (items) => {
     box.className = 'support-item';
     box.innerHTML = `<div><strong>${s.userName}</strong>: ${s.text}</div><div class='meta'>${formatTime(s.createdAt)}</div><div>${s.answer ? `✅ ${s.answeredBy}: ${s.answer}` : '⏳ Очікує відповіді адміна'}</div>`;
 
-    if (me.role === 'admin' && !s.answer) {
+    if (me.role === 'admin') {
       const form = document.createElement('form');
       form.className = 'row-form top-gap';
-      form.innerHTML = `<input placeholder='Відповідь...' required /><button>Відповісти</button>`;
+      form.innerHTML = `<input placeholder='${s.answer ? 'Оновити відповідь...' : 'Відповідь...'}' required /><button type='submit'>${s.answer ? 'Оновити' : 'Відповісти'}</button>`;
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
         const input = form.querySelector('input');
-        await api('/api/support/reply', 'POST', { token, supportId: s.id, answer: input.value.trim() });
-        await syncState();
+        try {
+          await api('/api/support/reply', 'POST', { token, supportId: s.id, answer: input.value.trim() });
+          await syncState();
+        } catch (err) {
+          alert(err.message);
+        }
       });
       box.append(form);
     }
@@ -247,6 +252,24 @@ ui.guestBtn.addEventListener('click', async () => {
     const name = prompt('Імʼя гостя:', 'Гість');
     const res = await api('/api/auth/guest', 'POST', { name });
     token = res.token;
+    localStorage.setItem(storageKey, token);
+    await syncState();
+  } catch (err) {
+    alert(err.message);
+  }
+});
+
+
+ui.adminQuickBtn.addEventListener('click', async () => {
+  try {
+    const start = await api('/api/auth/start', 'POST', {
+      action: 'login',
+      name: 'Адмін',
+      method: 'email',
+      email: 'admin@chat.local',
+    });
+    const verify = await api('/api/auth/verify', 'POST', { pendingId: start.pendingId, code: start.demoCode });
+    token = verify.token;
     localStorage.setItem(storageKey, token);
     await syncState();
   } catch (err) {
